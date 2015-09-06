@@ -54,17 +54,18 @@ module Avro
 
         elsif NAMED_TYPES_SYM.include? type_sym
           name = json_obj['name']
+          doc = json_obj['doc']
           namespace = json_obj.include?('namespace') ? json_obj['namespace'] : default_namespace
           case type_sym
           when :fixed
             size = json_obj['size']
-            return FixedSchema.new(name, namespace, size, names)
+            return FixedSchema.new(name, namespace, doc, size, names)
           when :enum
             symbols = json_obj['symbols']
-            return EnumSchema.new(name, namespace, symbols, names)
+            return EnumSchema.new(name, namespace, doc, symbols, names)
           when :record, :error
             fields = json_obj['fields']
-            return RecordSchema.new(name, namespace, fields, names, type_sym)
+            return RecordSchema.new(name, namespace, doc, fields, names, type_sym)
           else
             raise SchemaParseError.new("Unknown named type: #{type}")
           end
@@ -168,10 +169,11 @@ module Avro
     end
 
     class NamedSchema < Schema
-      attr_reader :name, :namespace
-      def initialize(type, name, namespace=nil, names=nil)
+      attr_reader :name, :namespace, :doc
+      def initialize(type, name, namespace=nil, doc=nil, names=nil)
         super(type)
         @name, @namespace = Name.extract_namespace(name, namespace)
+        @doc = doc
         names = Name.add_name(names, self)
       end
 
@@ -199,9 +201,10 @@ module Avro
           if field.respond_to?(:[]) # TODO(jmhodges) wtffffff
             type = field['type']
             name = field['name']
+            doc = field['doc']
             default = field['default']
             order = field['order']
-            new_field = Field.new(type, name, default, order, names, namespace)
+            new_field = Field.new(type, name, doc, default, order, names, namespace)
             # make sure field name has not been used yet
             if field_names.include?(new_field.name)
               raise SchemaParseError, "Field name #{new_field.name.inspect} is already in use"
@@ -215,12 +218,12 @@ module Avro
         field_objects
       end
 
-      def initialize(name, namespace, fields, names=nil, schema_type=:record)
+      def initialize(name, namespace, doc, fields, names=nil, schema_type=:record)
         if schema_type == :request || schema_type == 'request'
           @type_sym = schema_type.to_sym
           @namespace = namespace
         else
-          super(schema_type, name, namespace, names)
+          super(schema_type, name, namespace, doc, names)
         end
         @fields = RecordSchema.make_field_objects(fields, names, self.namespace)
       end
@@ -298,12 +301,12 @@ module Avro
 
     class EnumSchema < NamedSchema
       attr_reader :symbols
-      def initialize(name, space, symbols, names=nil)
+      def initialize(name, space, doc, symbols, names=nil)
         if symbols.uniq.length < symbols.length
           fail_msg = 'Duplicate symbol: %s' % symbols
           raise Avro::SchemaParseError, fail_msg
         end
-        super(:enum, name, space, names)
+        super(:enum, name, space, doc, names)
         @symbols = symbols
       end
 
@@ -333,12 +336,12 @@ module Avro
 
     class FixedSchema < NamedSchema
       attr_reader :size
-      def initialize(name, space, size, names=nil)
+      def initialize(name, space, doc, size, names=nil)
         # Ensure valid cto args
         unless size.is_a?(Fixnum) || size.is_a?(Bignum)
           raise AvroError, 'Fixed Schema requires a valid integer for size property.'
         end
-        super(:fixed, name, space, names)
+        super(:fixed, name, space, doc, names)
         @size = size
       end
 
@@ -349,11 +352,12 @@ module Avro
     end
 
     class Field < Schema
-      attr_reader :type, :name, :default, :order
+      attr_reader :type, :name, :doc, :default, :order
 
-      def initialize(type, name, default=nil, order=nil, names=nil, namespace=nil)
+      def initialize(type, name, doc, default=nil, order=nil, names=nil, namespace=nil)
         @type = subparse(type, names, namespace)
         @name = name
+        @doc = doc
         @default = default
         @order = order
       end

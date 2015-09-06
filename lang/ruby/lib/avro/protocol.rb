@@ -138,7 +138,7 @@ module Avro
         unless request.is_a?(Array)
           raise ProtocolParseError, "Request property not an Array: #{request.inspect}"
         end
-        Schema::RecordSchema.new(nil, default_namespace, request, names, :request)
+        Schema::RecordSchema.new(nil, default_namespace, nil, request, names, :request)
       end
 
       def parse_response(response, names)
